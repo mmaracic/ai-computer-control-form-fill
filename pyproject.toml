@@ -1,0 +1,13 @@
+[project]
+name = "ai-computer-control-form-fill"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.129.0",
+    "litellm>=1.81.11",
+    "openai-agents>=0.9.0",
+    "pydantic>=2.12.5",
+    "uvicorn>=0.40.0",
+]
