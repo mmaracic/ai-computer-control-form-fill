@@ -18,6 +18,8 @@ Keep the file updated with the information from conversation with uaer and the c
 - OpenAI Agent API to implement AI agents
 - LiteLLM for lightweight provider independent AI model inference
 - Pydantic for data validation and settings management
+- Pyyaml to read configuration from YAML files
+- Pytest for testing the application
 
 ## Code Style
 - Follow Python best practices and PEP 8 conventions
