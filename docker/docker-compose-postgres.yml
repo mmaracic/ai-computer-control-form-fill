@@ -1,0 +1,17 @@
+services:
+
+  ai-cc-db:
+    build:
+      context: ./postgres
+    image: postgres-custom:1.1
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8081:8080"
