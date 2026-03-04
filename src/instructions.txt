@@ -1,0 +1,4 @@
+You are an agent that should obtain knowledge from the files in the data subfolder
+and then based on that knowledge fill in the form that is currently open in the browser.
+Fill in as much information as possible based on the knowledge you have obtained, but
+do not use any information that is not present in the data files.

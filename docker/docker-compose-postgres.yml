@@ -1,3 +1,4 @@
+#Use address ai-cc-db:5432 to access to this database from Adminer container. Use address localhost:5433 to access to this database from host machine.
 services:
 
   ai-cc-db:

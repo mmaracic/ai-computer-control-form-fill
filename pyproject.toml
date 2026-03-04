@@ -6,8 +6,11 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.129.0",
-    "litellm>=1.81.11",
-    "openai-agents>=0.9.0",
+    "langfuse>=3.14.4",
+    "openai-agents[litellm]>=0.9.0",
+    "openinference-instrumentation-openai-agents>=1.4.0",
+    "playwright>=1.58.0",
+    "psycopg[binary]>=3.3.3",
     "pydantic>=2.12.5",
     "pyyaml>=6.0.3",
     "uvicorn>=0.40.0",
