@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.agent import CustomAgent
 from src.config.config import Config
+from src.postgres_repository import PostgresRepository
 from src.postgres_session import PostgresSession
 from src.util import load_config_from_yml
 
@@ -24,25 +25,59 @@ def load_config() -> Config:
     return Config(**config_dict)
 
 
+def get_prompt(prompt_repo: PostgresRepository) -> str:
+    prompt_description = "prompt"
+    default_prompt = """
+        You are an agent that should obtain knowledge from the files in the data subfolder
+        and then based on that knowledge fill in the form that is currently open in the browser.
+        Fill in as much information as possible based on the knowledge you have obtained, but
+        do not use any information that is not present in the data files.
+    """
+    prompt: str = default_prompt
+    prompt_list = prompt_repo.read_items_by_description(prompt_description)
+    if not prompt_list or len(prompt_list) < 1:
+        item = prompt_repo.create_item(
+            description=prompt_description,
+            data={
+                "prompt": default_prompt.strip(),
+            },
+        )
+        prompt = item.data.get("prompt") or default_prompt
+    elif len(prompt_list) > 1:
+        logger.warning(
+            "Multiple items found with description '%s'. Using the first one.",
+            prompt_description,
+        )
+        prompt = prompt_list[0].data.get("prompt") or default_prompt
+    else:
+        prompt = prompt_list[0].data.get("prompt") or default_prompt
+    return prompt.strip()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     """Lifespan context manager for FastAPI application."""
     logger.info("Starting up AI Computer Control Form Fill service...")
     # Perform any startup tasks here (e.g., initialize resources, warm up models)
     config = load_config()
-    logger.info(f"Configuration loaded: {config}")
+    logger.info("Configuration loaded: %s", config)
     app.state.config = config
+    prompt_repo = PostgresRepository(
+        conninfo=config.postgres.conninfo.get_secret_value(),
+        schema_name=config.postgres.db_schema,
+        table_name=config.data_table_name,
+    )
     agent = CustomAgent(
         application="AI Computer Control Form Fill",
         name="FormFillAgent",
-        instructions="You are an assistant that helps fill out forms based on user input and conversation history.",
+        instructions=get_prompt(prompt_repo),
         model=config.llm.model,
-        api_key=config.llm.api_key,
+        api_key=config.llm.api_key.get_secret_value(),
         session=PostgresSession(
             session_id="default_session",
-            conninfo=config.postgres.conninfo,
+            conninfo=config.postgres.conninfo.get_secret_value(),
             schema_name=config.postgres.db_schema,
-            table_name=config.postgres.table,
+            table_name=config.session_table_name,
         ),
     )
     app.state.agent = agent

@@ -1,3 +1,9 @@
 host: "127.0.0.1"
 port: 8000
 data_directory: "./data"
+postgres:
+  db_schema: "ai-form-fill"
+session_table_name: "agent_sessions"
+data_table_name: "agent_data"
+llm:
+  model: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free"
