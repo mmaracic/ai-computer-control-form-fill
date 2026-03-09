@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "input": "Hi",
+        "input": "list all projects, titles and periods worked on, most recent first, sort according to worked on period, return json list, without newlines, verify the  the dates to confirm accuracy",
         "conversation_id": "1"
       }
   auth: inherit

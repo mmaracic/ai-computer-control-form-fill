@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import tiktoken
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -26,12 +27,15 @@ def load_config() -> Config:
 
 
 def get_prompt(prompt_repo: PostgresRepository) -> str:
+    """Retrieve the prompt from the repository or use the default prompt if not found."""
     prompt_description = "prompt"
     default_prompt = """
-        You are an agent that should obtain knowledge from the files in the data subfolder
-        and then based on that knowledge fill in the form that is currently open in the browser.
-        Fill in as much information as possible based on the knowledge you have obtained, but
-        do not use any information that is not present in the data files.
+        You are an agent that has information about one or more persons extracted from CV and similar documents.
+        Based on that information, fill in the form that is currently open in the browser.
+        Fill in as much information as possible in the form based on the information you have.
+        (skills, project data, education, etc.).
+        Do not use any information that is not present in the context given to you in the system prompt.
+        If you don't have enough information to fill in a field, leave it blank.
     """
     prompt: str = default_prompt
     prompt_list = prompt_repo.read_items_by_description(prompt_description)
@@ -54,6 +58,47 @@ def get_prompt(prompt_repo: PostgresRepository) -> str:
     return prompt.strip()
 
 
+def store_extracted_data(
+    data_repo: PostgresRepository, extracted_data: dict[str, str], token_model: str
+) -> None:
+    """Store the extracted data in the repository."""
+    enc = tiktoken.encoding_for_model(token_model)
+    for key, value in extracted_data.items():
+        token_count = len(enc.encode(str(value)))
+        logger.info(
+            "Storing data for key '%s' with token count %d for model '%s'.",
+            key,
+            token_count,
+            token_model,
+        )
+        item = data_repo.read_items_by_description(key)
+        if item and len(item) > 0:
+            logger.info("Updating existing item with description '%s'.", key)
+            data_repo.update_item(
+                item_id=item[0].id,
+                description=key,
+                data={"text": value, "token_count": token_count},
+            )
+        else:
+            logger.info("Creating new item with description '%s'.", key)
+            data_repo.create_item(
+                description=key,
+                data={"text": value, "token_count": token_count},
+            )
+
+
+def load_extracted_data(data_repo: PostgresRepository) -> dict[str, str]:
+    """Load the extracted data from the repository and return it as a dictionary."""
+    extracted_data: dict[str, str] = {}
+    items = data_repo.read_all_items()
+    for item in items:
+        extracted_data[item.description] = item.data.get("text", "")
+    logger.info(
+        "Loaded extracted data for %d items from the repository.", len(extracted_data)
+    )
+    return extracted_data
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     """Lifespan context manager for FastAPI application."""
@@ -62,15 +107,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     config = load_config()
     logger.info("Configuration loaded: %s", config)
     app.state.config = config
-    prompt_repo = PostgresRepository(
+    data_repo = PostgresRepository(
         conninfo=config.postgres.conninfo.get_secret_value(),
         schema_name=config.postgres.db_schema,
         table_name=config.data_table_name,
     )
+    if config.extract_data:
+        from src.document_data_extractor import DocumentDataExtractor
+
+        data_extractor = DocumentDataExtractor(data_folder=config.data_directory)
+        extracted_data = data_extractor.extract_data()
+        store_extracted_data(data_repo, extracted_data, config.tokenizer_llm_model)
+    else:
+        extracted_data = load_extracted_data(data_repo)
+    prompt_repo = PostgresRepository(
+        conninfo=config.postgres.conninfo.get_secret_value(),
+        schema_name=config.postgres.db_schema,
+        table_name=config.config_table_name,
+    )
     agent = CustomAgent(
         application="AI Computer Control Form Fill",
         name="FormFillAgent",
-        instructions=get_prompt(prompt_repo),
+        instructions=get_prompt(prompt_repo)
+        + "\n\n"
+        + "Personal information:\n"
+        + str(extracted_data),
         model=config.llm.model,
         api_key=config.llm.api_key.get_secret_value(),
         session=PostgresSession(
@@ -105,10 +166,10 @@ class ChatRequest(BaseModel):
 async def chat(request: ChatRequest) -> str:
     """Endpoint to handle chat interactions with the agent."""
     agent: CustomAgent = app.state.agent
-    response = await agent.act(
-        input=request.input, conversation_id=request.conversation_id
+    return await agent.act(
+        input=request.input,
+        conversation_id=request.conversation_id,
     )
-    return response
 
 
 if __name__ == "__main__":

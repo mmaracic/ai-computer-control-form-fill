@@ -27,6 +27,9 @@ class Config(BaseConfig):
     port: int
     data_directory: Path
     llm: LLMConfig
+    tokenizer_llm_model: str
     postgres: PostgresConfig
     session_table_name: str
+    config_table_name: str
     data_table_name: str
+    extract_data: bool

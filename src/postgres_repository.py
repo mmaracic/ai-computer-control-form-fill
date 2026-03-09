@@ -189,6 +189,30 @@ class PostgresRepository:
             for r in rows
         ]
 
+    def read_all_items(self) -> list[RepositoryItem]:
+        """Read all items from the Postgres DB table.
+
+        Returns:
+            List of all items ordered by id ascending.
+
+        """
+        select_sql = sql.SQL(
+            "SELECT {}, {}, {}, {} FROM {} ORDER BY {} ASC",
+        ).format(
+            sql.Identifier(COL_ID),
+            sql.Identifier(COL_DESCRIPTION),
+            sql.Identifier(COL_DATA),
+            sql.Identifier(COL_CREATED_AT),
+            self._table_ident,
+            sql.Identifier(COL_ID),
+        )
+        with psycopg.connect(self._conninfo) as conn:
+            rows = conn.execute(select_sql).fetchall()
+        return [
+            RepositoryItem(id=r[0], description=r[1], data=r[2], created_at=r[3])
+            for r in rows
+        ]
+
     def update_item(
         self,
         item_id: int,

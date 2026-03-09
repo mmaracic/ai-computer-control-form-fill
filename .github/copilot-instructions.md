@@ -14,6 +14,7 @@ Keep the file updated with the information from conversation with uaer and the c
 ## Project technology Stack
 - Python 3.12 for core logic and AI integration present on machine
 - UV as the build tool for managing dependencies and packaging present on machine
+- use exact versions of dependencies in pyproject.toml to ensure stability and reproducibility
 - FastAPI for creating a RESTful API to expose form filling functionality present on machine
 - OpenAI Agent API to implement AI agents
 - LiteLLM for lightweight provider independent AI model inference
@@ -36,6 +37,7 @@ Keep the file updated with the information from conversation with uaer and the c
 
 ## Project code organisation
 - single module uv application
+- main entry point in src/main.py
 - source files in src subfolder
 - tests in tests subfolder
 - virtual environment in .venv subfolder
