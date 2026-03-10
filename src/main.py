@@ -11,6 +11,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from src.agent import CustomAgent
+from src.browser.browser_service import BrowserService
+from src.browser.browser_tools import create_browser_tools
 from src.config.config import Config
 from src.postgres_repository import PostgresRepository
 from src.postgres_session import PostgresSession
@@ -125,6 +127,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         schema_name=config.postgres.db_schema,
         table_name=config.config_table_name,
     )
+    browser_service = BrowserService(headless=config.browser.headless)
+    await browser_service.start()
+    tools = create_browser_tools(browser_service)
     agent = CustomAgent(
         application="AI Computer Control Form Fill",
         name="FormFillAgent",
@@ -140,11 +145,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
             schema_name=config.postgres.db_schema,
             table_name=config.session_table_name,
         ),
+        tools=tools,
     )
     app.state.agent = agent
+    app.state.browser_service = browser_service
     yield
     logger.info("Shutting down AI Computer Control Form Fill service...")
-    # Perform any cleanup tasks here (e.g., close resources, save state)
+    await browser_service.stop()
 
 
 app = FastAPI(
@@ -167,7 +174,7 @@ async def chat(request: ChatRequest) -> str:
     """Endpoint to handle chat interactions with the agent."""
     agent: CustomAgent = app.state.agent
     return await agent.act(
-        input=request.input,
+        message=request.input,
         conversation_id=request.conversation_id,
     )
 

@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from pydantic_settings import BaseSettings
 from pydantic import BaseModel, SecretStr
 
 from src.config.base_config import BaseConfig
@@ -20,6 +19,12 @@ class PostgresConfig(BaseModel):
     db_schema: str
 
 
+class BrowserConfig(BaseModel):
+    """Configuration for the Playwright browser automation."""
+
+    headless: bool
+
+
 class Config(BaseConfig):
     """Configuration for the application."""
 
@@ -29,6 +34,7 @@ class Config(BaseConfig):
     llm: LLMConfig
     tokenizer_llm_model: str
     postgres: PostgresConfig
+    browser: BrowserConfig
     session_table_name: str
     config_table_name: str
     data_table_name: str

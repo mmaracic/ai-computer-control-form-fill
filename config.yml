@@ -10,3 +10,5 @@ config_table_name: "agent_data"
 tokenizer_llm_model: "gpt-5"
 llm:
   model: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free"
+browser:
+  headless: true

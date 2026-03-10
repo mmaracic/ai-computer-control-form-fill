@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "input": "list all projects, titles and periods worked on, most recent first, sort according to worked on period, return json list, without newlines, verify the  the dates to confirm accuracy",
+        "input": "Can you navigate to https://europa.eu/europass/eportfolio/screen/cv-editor/legacy-cv-editor?lang=en and fill it in with available data",
         "conversation_id": "1"
       }
   auth: inherit
