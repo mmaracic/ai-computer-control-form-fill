@@ -5,6 +5,7 @@ postgres:
   db_schema: "ai-form-fill"
 session_table_name: "agent_sessions"
 data_table_name: "extracted_data"
+use_extracted_data: false
 extract_data: false
 config_table_name: "agent_data"
 tokenizer_llm_model: "gpt-5"
