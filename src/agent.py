@@ -5,6 +5,9 @@ from agents.extensions.models.litellm_model import LitellmModel
 from langfuse import get_client
 from openinference.instrumentation.openai_agents import OpenAIAgentsInstrumentor
 
+from src.config.config import PostgresConfig
+from src.postgres_session import PostgresSession
+
 logger = logging.getLogger(__name__)
 
 OpenAIAgentsInstrumentor().instrument()
@@ -23,7 +26,8 @@ class CustomAgent:
 
     _application: str
     _agent: Agent
-    _session: SessionABC
+    _session_postgres_config: PostgresConfig
+    _session_table_name: str
 
     def __init__(
         self,
@@ -32,7 +36,8 @@ class CustomAgent:
         instructions: str,
         model: str,
         api_key: str,
-        session: SessionABC,
+        session_postgres_config: PostgresConfig,
+        session_table_name: str,
         tools: list,
     ) -> None:
         """Initialize the agent with model configuration, session, and browser tools.
@@ -43,7 +48,8 @@ class CustomAgent:
             instructions: System prompt / instructions for the agent.
             model: LiteLLM model string (e.g. "openrouter/...").
             api_key: API key for the model provider.
-            session: SessionABC implementation for conversation history storage.
+            session_postgres_config: PostgresConfig for managing conversation sessions.
+            session_table_name: Name of the Postgres table for session management.
             tools: List of function_tool-decorated async callables for browser control.
         """
         self._application = application
@@ -53,9 +59,10 @@ class CustomAgent:
             model=LitellmModel(model=model, api_key=api_key),
             tools=tools,
         )
-        self._session = session
+        self._session_postgres_config = session_postgres_config
+        self._session_table_name = session_table_name
 
-    async def act(self, message: str, conversation_id: str) -> str:
+    async def act(self, message: str, conversation_id: str, clear_history: bool) -> str:
         """Run the agent for the given message within a conversation context.
 
         Sets current_conversation_id so browser tools operate on the correct
@@ -64,6 +71,7 @@ class CustomAgent:
         Args:
             message: The user message or instruction to process.
             conversation_id: Unique identifier for the conversation session.
+            clear_history: Whether to clear the conversation history for this conversation_id before processing.
 
         Returns:
             The agent's final text output.
@@ -73,10 +81,25 @@ class CustomAgent:
             group_id=conversation_id,
             workflow_name=self._application,
         )
-        result = await Runner.run(
-            starting_agent=self._agent,
-            input=message,
-            run_config=run_config,
-            session=self._session,
+        session = PostgresSession(
+            session_id=conversation_id,
+            conninfo=self._session_postgres_config.conninfo.get_secret_value(),
+            schema_name=self._session_postgres_config.db_schema,
+            table_name=self._session_table_name,
         )
-        return result.final_output
+        if clear_history:
+            await session.clear_session()
+            logger.info(
+                "Cleared conversation history for conversation_id=%s", conversation_id
+            )
+        try:
+            result = await Runner.run(
+                starting_agent=self._agent,
+                input=message,
+                run_config=run_config,
+                session=session,
+            )
+            return result.final_output
+        except Exception:
+            logger.exception("Error occurred while running the agent")
+            return "An error occurred while processing your request."

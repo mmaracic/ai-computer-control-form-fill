@@ -10,8 +10,9 @@ http:
     type: json
     data: |-
       {
-        "input": "Can you navigate to https://europa.eu/europass/eportfolio/screen/cv-editor/legacy-cv-editor?lang=en and fill it in with available data",
-        "conversation_id": "1"
+        "input": "Instructions: 1. Navigate to https://europa.eu/europass/eportfolio/screen/cv-editor/legacy-cv-editor?lang=en. 2. Once you open the page and verify that it is open, select the button labelled as 'Create new CV', then select 'Use the standard CV buikder' button. 3. Use button 'Continue' instead of 'Resume last CV' if those options are offered. 4. Start filling in the data. 5. If an unforseen step or ambiguity is reached, ask user for help.",
+        "conversation_id": "1",
+        "clear_history": true
       }
   auth: inherit
 

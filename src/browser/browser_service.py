@@ -45,14 +45,27 @@ class BrowserService:
         logger.info("Browser started successfully.")
 
     async def stop(self) -> None:
-        """Close the open page, the browser, and stop Playwright."""
+        """Close the open page, the browser, and stop Playwright.
+
+        Ignores connection errors that occur when the browser was already closed
+        externally (e.g. user closed the headed window before app shutdown).
+        """
         if self._page is not None and not self._page.is_closed():
-            await self._page.close()
+            try:
+                await self._page.close()
+            except Exception:
+                logger.debug("Page already closed before stop().")
         self._page = None
         if self._browser:
-            await self._browser.close()
+            try:
+                await self._browser.close()
+            except Exception:
+                logger.debug("Browser already closed before stop().")
         if self._playwright:
-            await self._playwright.stop()
+            try:
+                await self._playwright.stop()
+            except Exception:
+                logger.debug("Playwright already stopped before stop().")
         logger.info("Browser service stopped.")
 
     async def get_or_create_page(self) -> Page:

@@ -139,12 +139,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         + str(extracted_data),
         model=config.llm.model,
         api_key=config.llm.api_key.get_secret_value(),
-        session=PostgresSession(
-            session_id="default_session",
-            conninfo=config.postgres.conninfo.get_secret_value(),
-            schema_name=config.postgres.db_schema,
-            table_name=config.session_table_name,
-        ),
+        session_postgres_config=config.postgres,
+        session_table_name=config.session_table_name,
         tools=tools,
     )
     app.state.agent = agent
@@ -167,6 +163,7 @@ class ChatRequest(BaseModel):
 
     input: str
     conversation_id: str
+    clear_history: bool
 
 
 @app.post("/chat")
@@ -176,6 +173,7 @@ async def chat(request: ChatRequest) -> str:
     return await agent.act(
         message=request.input,
         conversation_id=request.conversation_id,
+        clear_history=request.clear_history,
     )
 
 

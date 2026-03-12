@@ -18,15 +18,10 @@ Project implements AI-powered computer control for automated form filling.
 ### Using Computer Control with the Agent
 Send instructions to the agent via the `POST /chat` endpoint. The agent will autonomously navigate to pages, discover form fields, and fill them using the data extracted from provided documents.
 
-Example — navigate to a form and fill it:
-```bash
-curl -X POST http://localhost:8080/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": "Go to https://example.com/form and fill in the contact form using the data from my CV document",
-    "conversation_id": "session-1"
-  }'
-```
+Example is located in bruno subfolder.
+
+## About Computer Control
+The application controls a real browser (Chromium via Playwright) on behalf of the user. The AI agent receives natural language instructions, reasons about what needs to be done, and calls browser tools in a loop until the task is complete.
 
 The agent follows a perceive-act loop:
 1. **navigate** — opens the target URL in a Playwright-controlled browser
@@ -36,8 +31,7 @@ The agent follows a perceive-act loop:
 
 The same `conversation_id` keeps the browser page open between messages, so you can have a multi-turn conversation to guide the agent, correct mistakes, or fill multi-step forms.
 
-## About Computer Control
-The application controls a real browser (Chromium via Playwright) on behalf of the user. The AI agent receives natural language instructions, reasons about what needs to be done, and calls browser tools in a loop until the task is complete.
+
 
 ### Browser Tools
 | Tool | Description |
@@ -54,7 +48,10 @@ All tools resolve elements using Playwright's accessibility-first locators — `
 ### Browser Lifecycle
 A single persistent Playwright Chromium instance is started when the FastAPI application starts and shut down on application exit. The page survives across multiple chat turns so the agent can navigate multi-step forms without losing state.
 
-## Features
+### Configuration
+Configuration for computer control Playwright browser is under the `browser` section in `config.yml`. You can set `headless: false` to see the browser in action during development. When headless mode is enabled, the browser runs in the background without a UI, which is suitable for production deployments.
+
+## Application features
 ### Structural and agentic features:
 - Using project Copilot instructions that augment the global instructions and help the model understand the context of the application and its purpose.
 - FastAPI application with startup and shutdown events for resource management.
