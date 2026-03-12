@@ -71,3 +71,14 @@ Configuration for computer control Playwright browser is under the `browser` sec
 ### Computer control features:
 - Playwright for browser automation to perform form filling tasks
 - The implementation doesnt rely on image recognition; it uses Playwright's accessibility locators to find and interact with form fields in the DOM based on their labels, placeholders, names, or ids.
+
+## Issues
+When the application fails to start due to missing Playwright dependency (although playwright was installeld as per running instructions):
+```
+ms-playwright/chromium-1208/chrome-linux64/chrome: error while loading shared libraries: libnspr4.so: cannot open shared object file: No such file or directory
+```
+Install dependencies using Playwright instructions (using npx):
+https://playwright.dev/docs/browsers#install-system-dependencies
+```
+npx playwright install-deps chromium
+```

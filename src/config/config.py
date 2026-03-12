@@ -38,4 +38,5 @@ class Config(BaseConfig):
     session_table_name: str
     config_table_name: str
     data_table_name: str
+    use_extracted_data: bool
     extract_data: bool

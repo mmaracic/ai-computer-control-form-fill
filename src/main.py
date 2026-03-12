@@ -100,6 +100,12 @@ def load_extracted_data(data_repo: PostgresRepository) -> dict[str, str]:
     )
     return extracted_data
 
+def _get_instructions(prompt_repo: PostgresRepository, extracted_data: dict[str, str], use_extracted_data: bool) -> str:
+    """Get the instructions for the agent from the repository."""
+    instructions = get_prompt(prompt_repo)
+    if use_extracted_data:
+        instructions += "\n\n" + "Personal information:\n" + str(extracted_data)
+    return instructions
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
@@ -133,10 +139,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
     agent = CustomAgent(
         application="AI Computer Control Form Fill",
         name="FormFillAgent",
-        instructions=get_prompt(prompt_repo)
-        + "\n\n"
-        + "Personal information:\n"
-        + str(extracted_data),
+        instructions=_get_instructions(prompt_repo, extracted_data, config.use_extracted_data),
         model=config.llm.model,
         api_key=config.llm.api_key.get_secret_value(),
         session_postgres_config=config.postgres,
