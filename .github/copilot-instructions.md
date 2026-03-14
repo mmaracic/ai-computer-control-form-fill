@@ -34,6 +34,7 @@ Keep the file updated with the information from conversation with uaer and the c
 - Follow Python best practices and PEP 8 conventions
 - Use descriptive variable and function names that reflect the form filling domain
 - Keep functions focused and single-purpose
+- Agent tools have to be thin wrappers around business service method calls and should not contain complex logic to promote extensibility and simple testing.
 
 ## Project code organisation
 - single module uv application

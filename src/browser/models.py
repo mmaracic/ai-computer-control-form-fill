@@ -32,3 +32,10 @@ class FormField(BaseModel):
     field_type: FieldType
     current_value: str | None
     options: list[str] | None
+
+
+class NavigationResult(BaseModel):
+    """Represents the outcome of a browser navigation action."""
+
+    current_url: str
+    title: str
