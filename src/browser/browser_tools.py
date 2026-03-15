@@ -94,7 +94,7 @@ def create_browser_tools(
 
         """
         try:
-            await browser_service.select_option(identifier, value)
+            await browser_service.fill_field(identifier, value)
         except ValueError as exc:
             return f"{exc} Use get_form_fields to see available fields."
         except PlaywrightError as exc:

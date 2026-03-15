@@ -4,51 +4,14 @@ import logging
 from typing import Literal
 
 from playwright.async_api import Browser, Locator, Page, Playwright, async_playwright
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-from src.browser.models import FormField, NavigationResult
+from src.browser.handlers.form_field_handler import LOCATOR_TIMEOUT_MS, FormFieldHandler
+from src.browser.models import FieldType, FormField, NavigationResult
 
 logger = logging.getLogger(__name__)
 
 NOT_STARTED_ERROR: str = "BrowserService has not been started. Call start() first."
 NAVIGATION_WAIT_UNTIL: Literal["domcontentloaded"] = "domcontentloaded"
-LOCATOR_TIMEOUT_MS: int = 3000
-
-GET_FORM_FIELDS_JS: str = """
-() => {
-    const getLabel = (element) => {
-        const ariaLabel = element.getAttribute('aria-label');
-        if (ariaLabel) return ariaLabel;
-        if (element.id) {
-            const label = document.querySelector(`label[for="${element.id}"]`);
-            if (label) return label.textContent.trim();
-        }
-        const parent = element.closest('label');
-        if (parent) return parent.textContent.replace(element.value, '').trim();
-        return null;
-    };
-    const inputs = Array.from(
-        document.querySelectorAll('input:not([type="hidden"]), select, textarea')
-    );
-    return inputs.map(el => ({
-        label: getLabel(el),
-        name: el.name || null,
-        field_id: el.id || null,
-        placeholder: el.placeholder || null,
-        field_type: el.tagName === 'SELECT'
-            ? 'select'
-            : el.tagName === 'TEXTAREA'
-                ? 'textarea'
-                : (el.type || 'text'),
-        current_value: el.tagName === 'SELECT'
-            ? (el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : null)
-            : (el.value || null),
-        options: el.tagName === 'SELECT'
-            ? Array.from(el.options).map(o => o.text)
-            : null,
-    }));
-}
-"""
 
 
 class BrowserService:
@@ -59,6 +22,8 @@ class BrowserService:
     """
 
     _headless: bool
+    _handlers: list[FormFieldHandler]
+    _handler_map: dict[FieldType, FormFieldHandler]
     _playwright: Playwright | None
     _browser: Browser | None
     _page: Page | None
@@ -66,14 +31,19 @@ class BrowserService:
     def __init__(
         self,
         headless: bool,  # noqa: FBT001
+        handlers: list[FormFieldHandler],
     ) -> None:
         """Initialize BrowserService without starting the browser.
 
         Args:
             headless: Whether to run the browser in headless mode.
+            handlers: Ordered list of FormFieldHandler instances used to detect
+                and fill form fields. Each handler covers one FieldType.
 
         """
         self._headless = headless
+        self._handlers = handlers
+        self._handler_map = {h.field_type: h for h in handlers}
         self._playwright = None
         self._browser = None
         self._page = None
@@ -151,35 +121,37 @@ class BrowserService:
         return NavigationResult(current_url=current_url, title=title)
 
     async def get_form_fields(self) -> list[FormField]:
-        """Evaluate the page to extract all fillable form fields.
+        """Run all registered field handlers and return the combined field list.
 
         Returns:
-            List of FormField models representing each discovered input.
+            List of FormField models discovered by all handlers, in handler order.
 
         Raises:
-            PlaywrightError: If the page evaluation fails.
+            PlaywrightError: If any handler's page evaluation fails.
 
         """
         page = await self.get_or_create_page()
-        raw_fields = await page.evaluate(GET_FORM_FIELDS_JS)
-        fields = [FormField.model_validate(f) for f in raw_fields]
+        fields: list[FormField] = []
+        for handler in self._handlers:
+            fields.extend(await handler.find_fields(page))
         logger.info("Found %d form field(s) on page.", len(fields))
         return fields
 
     async def fill_field(self, identifier: str, value: str) -> None:
-        """Fill a text, email, number, date, or textarea field by identifier.
+        """Locate a field by identifier, dispatch to the matching handler, and apply value.
 
-        Calls get_form_fields() to confirm the field exists, then builds precise
-        locators from the FormField properties (field_id, name, label, placeholder).
+        Calls get_form_fields() to confirm the field exists and determine its type,
+        then delegates filling to the handler registered for that FieldType.
 
         Args:
             identifier: Label text, placeholder, name attribute, or id of the field.
-            value: The text value to enter into the field.
+            value: The value to apply (text, option text, 'true'/'false', etc.).
 
         Raises:
-            ValueError: If no field matching the identifier is found in the page fields.
-            PlaywrightTimeoutError: If the fill operation times out.
-            PlaywrightError: If a Playwright error occurs during fill.
+            ValueError: If the field is not found, has no usable locator, or its
+                FieldType has no registered handler.
+            PlaywrightTimeoutError: If the interaction times out.
+            PlaywrightError: If a Playwright error occurs.
 
         """
         fields = await self.get_form_fields()
@@ -188,67 +160,40 @@ class BrowserService:
             msg = f"Field '{identifier}' not found."
             logger.warning("Could not find field with identifier '%s'.", identifier)
             raise ValueError(msg)
-        page = await self.get_or_create_page()
-        locator = _locator_for_field(page, form_field, identifier)
-        await locator.first.fill(value, timeout=LOCATOR_TIMEOUT_MS)
-        logger.info("Filled field '%s'.", identifier)
-
-    async def select_option(self, identifier: str, value: str) -> None:
-        """Select an option in a dropdown (select element) by identifier.
-
-        Calls get_form_fields() to confirm the field exists and that the requested
-        option is available, then builds a precise locator from the FormField properties.
-
-        Args:
-            identifier: Label text, name attribute, field_id, or placeholder of the select.
-            value: The visible option text to select.
-
-        Raises:
-            ValueError: If the dropdown or the requested option is not found.
-
-        """
-        fields = await self.get_form_fields()
-        form_field = _find_form_field(fields, identifier)
-        if form_field is None:
-            msg = f"Dropdown '{identifier}' not found."
-            raise ValueError(msg)
-        if form_field.options is not None and value not in form_field.options:
-            msg = f"Option '{value}' not found in dropdown '{identifier}'."
+        handler = self._handler_map.get(form_field.field_type)
+        if handler is None:
+            msg = f"No handler registered for field type '{form_field.field_type}'."
             raise ValueError(msg)
         page = await self.get_or_create_page()
         locator = _locator_for_field(page, form_field, identifier)
-        selected = await _select_from_locator(locator.first, value)
-        if not selected:
-            msg = f"Option '{value}' could not be selected in dropdown '{identifier}'."
-            raise ValueError(msg)
-        logger.info("Selected option '%s' in field '%s'.", value, identifier)
+        await handler.fill(locator.first, value)
+        logger.info("Filled field '%s' via %s.", identifier, type(handler).__name__)
 
     async def click_element(self, identifier: str) -> None:
-        """Click a button, checkbox, radio button, or any interactive element.
+        """Click a button or interactive element confirmed to exist via get_form_fields().
 
-        Locates the element by combining button role, link role, aria-label,
-        visible text, and id into a single chained locator.
+        Calls get_form_fields() to confirm the element is present on the page,
+        then builds a precise locator from the field's attributes and clicks it.
 
         Args:
-            identifier: Visible text, aria-label, or id of the element to click.
+            identifier: Label text, placeholder, name attribute, or id of the element.
 
         Raises:
-            ValueError: If no clickable element matching the identifier is found.
+            ValueError: If the field is not found or has no usable locator attributes.
             PlaywrightTimeoutError: If the click operation times out.
             PlaywrightError: If a Playwright error occurs during the click.
 
         """
-        page = await self.get_or_create_page()
-        locator = (
-            page.get_by_role("button", name=identifier)
-            .or_(page.get_by_role("link", name=identifier))
-            .or_(page.get_by_label(identifier, exact=False))
-            .or_(page.get_by_text(identifier, exact=False))
-            .or_(page.locator(f"#{identifier}"))
-        )
-        if await locator.count() == 0:
-            msg = f"Element '{identifier}' not found or not clickable."
+        logger.info("Attempting to click element '%s'.", identifier)
+        fields = await self.get_form_fields()
+        form_field = _find_form_field(fields, identifier)
+        if form_field is None:
+            msg = f"Element '{identifier}' not found."
+            logger.warning("Could not find element with identifier '%s'.", identifier)
             raise ValueError(msg)
+        logger.info("Found element '%s' for clicking.", identifier)
+        page = await self.get_or_create_page()
+        locator = _locator_for_field(page, form_field, identifier)
         await locator.first.click(timeout=LOCATOR_TIMEOUT_MS)
         logger.info("Clicked element '%s'.", identifier)
 
@@ -304,29 +249,3 @@ def _locator_for_field(page: Page, form_field: FormField, identifier: str) -> Lo
         return page.get_by_placeholder(form_field.placeholder, exact=True)
     msg = f"Field '{identifier}' has no usable locator attributes."
     raise ValueError(msg)
-
-
-async def _select_from_locator(locator: Locator, value: str) -> bool:
-    """Try to select a dropdown option by visible label then by value attribute.
-
-    Args:
-        locator: The Playwright Locator pointing to the select element.
-        value: The option text or value attribute to select.
-
-    Returns:
-        True if the selection succeeded, False otherwise.
-
-    """
-    try:
-        await locator.select_option(label=value, timeout=LOCATOR_TIMEOUT_MS)
-    except PlaywrightTimeoutError:
-        pass
-    else:
-        return True
-    try:
-        await locator.select_option(value=value, timeout=LOCATOR_TIMEOUT_MS)
-    except PlaywrightTimeoutError:
-        pass
-    else:
-        return True
-    return False

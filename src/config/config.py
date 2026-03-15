@@ -40,3 +40,4 @@ class Config(BaseConfig):
     data_table_name: str
     use_extracted_data: bool
     extract_data: bool
+    max_turns: int

@@ -13,3 +13,4 @@ llm:
   model: "openrouter/nvidia/nemotron-3-nano-30b-a3b:free"
 browser:
   headless: false
+max_turns: 20

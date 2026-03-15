@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "input": "Instructions: 1. Navigate to https://europa.eu/europass/eportfolio/screen/cv-editor/legacy-cv-editor?lang=en. 2. Once you open the page and verify that it is open, select the button labelled as 'Create new CV', then select 'Use the standard CV buikder' button. 3. Use button 'Continue' instead of 'Resume last CV' if those options are offered. 4. List all the input fields that need to be filled in a form  and their labels (includes text areas andn dropdowns) so I would know what data you need acaross all tabs, one tab at a time",
+        "input": "Instructions: 1. Navigate to https://europa.eu/europass/eportfolio/screen/cv-editor/legacy-cv-editor?lang=en. 2. Once you open the page and verify that it is open, select the button labelled as 'Create new CV', then select 'Use the standard CV builder' button. 3. Use button 'Continue' instead of 'Resume last CV' if those options are offered. 4. List all the input fields that need to be filled in a form  and their labels (includes text areas andn dropdowns) so I would know what data you need acaross all tabs, one tab at a time. Never assume which page elements are available, use tools to get the list. Never skip steps given in the instructions. If you get an error when clicking a button ask the user for instructions",
         "conversation_id": "1",
         "clear_history": true
       }

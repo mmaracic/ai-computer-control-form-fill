@@ -10,9 +10,19 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from src.agent import CustomAgent
+from src.agent import CustomAgent, SessionItem
 from src.browser.browser_service import BrowserService
 from src.browser.browser_tools import create_browser_tools
+from src.browser.handlers.button_field_handler import ButtonFieldHandler
+from src.browser.handlers.checkbox_field_handler import CheckboxFieldHandler
+from src.browser.handlers.date_field_handler import DateFieldHandler
+from src.browser.handlers.email_field_handler import EmailFieldHandler
+from src.browser.handlers.number_field_handler import NumberFieldHandler
+from src.browser.handlers.password_field_handler import PasswordFieldHandler
+from src.browser.handlers.radio_field_handler import RadioFieldHandler
+from src.browser.handlers.select_field_handler import SelectFieldHandler
+from src.browser.handlers.text_field_handler import TextFieldHandler
+from src.browser.handlers.textarea_field_handler import TextareaFieldHandler
 from src.config.config import Config
 from src.postgres_repository import PostgresRepository
 from src.postgres_session import PostgresSession
@@ -100,12 +110,18 @@ def load_extracted_data(data_repo: PostgresRepository) -> dict[str, str]:
     )
     return extracted_data
 
-def _get_instructions(prompt_repo: PostgresRepository, extracted_data: dict[str, str], use_extracted_data: bool) -> str:
+
+def _get_instructions(
+    prompt_repo: PostgresRepository,
+    extracted_data: dict[str, str],
+    use_extracted_data: bool,
+) -> str:
     """Get the instructions for the agent from the repository."""
     instructions = get_prompt(prompt_repo)
     if use_extracted_data:
         instructions += "\n\n" + "Personal information:\n" + str(extracted_data)
     return instructions
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
@@ -133,18 +149,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
         schema_name=config.postgres.db_schema,
         table_name=config.config_table_name,
     )
-    browser_service = BrowserService(headless=config.browser.headless)
+    browser_service = BrowserService(
+        headless=config.browser.headless,
+        handlers=[
+            TextFieldHandler(),
+            EmailFieldHandler(),
+            PasswordFieldHandler(),
+            NumberFieldHandler(),
+            DateFieldHandler(),
+            TextareaFieldHandler(),
+            SelectFieldHandler(),
+            CheckboxFieldHandler(),
+            RadioFieldHandler(),
+            ButtonFieldHandler(),
+        ],
+    )
     await browser_service.start()
     tools = create_browser_tools(browser_service)
     agent = CustomAgent(
         application="AI Computer Control Form Fill",
         name="FormFillAgent",
-        instructions=_get_instructions(prompt_repo, extracted_data, config.use_extracted_data),
+        instructions=_get_instructions(
+            prompt_repo, extracted_data, config.use_extracted_data
+        ),
         model=config.llm.model,
         api_key=config.llm.api_key.get_secret_value(),
         session_postgres_config=config.postgres,
         session_table_name=config.session_table_name,
         tools=tools,
+        max_turns=config.max_turns,
     )
     app.state.agent = agent
     app.state.browser_service = browser_service
@@ -178,6 +211,26 @@ async def chat(request: ChatRequest) -> str:
         conversation_id=request.conversation_id,
         clear_history=request.clear_history,
     )
+
+
+@app.get("/session")
+async def get_session(conversation_id: str) -> list[SessionItem]:
+    """Endpoint to handle chat interactions with the agent."""
+    agent: CustomAgent = app.state.agent
+    return await agent.get_session_data(conversation_id=conversation_id)
+
+
+class ClickRequest(BaseModel):
+    """Request model for the click endpoint."""
+
+    identifier: str
+
+
+@app.post("/click")
+async def click_element(request: ClickRequest) -> None:
+    """Endpoint to handle chat interactions with the agent."""
+    browser_service: BrowserService = app.state.browser_service
+    await browser_service.click_element(identifier=request.identifier)
 
 
 if __name__ == "__main__":
