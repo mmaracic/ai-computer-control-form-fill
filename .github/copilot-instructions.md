@@ -65,6 +65,7 @@ Keep the file updated with the information from conversation with uaer and the c
 - Mock external dependencies (browsers, AI services, databases, files) in unit tests
 - Include edge cases every function and class
 - Integration tests should include testscontainers or harnesses and never include calls to cloud services, browsers or LLM providers
+- Test files mirror the source tree under test folder. When a source file is created or modified, its mirror test file must be created or amended in the same turn to cover the added functionality and edge cases.
 
 ## Project security
 - Never hard-code credentials or API keys
