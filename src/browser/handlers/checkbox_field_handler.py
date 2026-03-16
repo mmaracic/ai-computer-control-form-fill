@@ -4,7 +4,11 @@ import logging
 
 from playwright.async_api import Locator, Page
 
-from src.browser.handlers.form_field_handler import FormFieldHandler, LOCATOR_TIMEOUT_MS
+from src.browser.handlers.form_field_handler import (
+    AriaRole,
+    FormFieldHandler,
+    LOCATOR_TIMEOUT_MS,
+)
 from src.browser.models import FieldType, FormField
 
 logger = logging.getLogger(__name__)
@@ -51,6 +55,11 @@ class CheckboxFieldHandler(FormFieldHandler):
     def field_type(self) -> FieldType:
         """Return the FieldType this handler is responsible for."""
         return FieldType.CHECKBOX
+
+    @property
+    def _aria_role(self) -> AriaRole | None:
+        """Return the ARIA role for checkbox inputs."""
+        return "checkbox"
 
     async def find_fields(self, page: Page) -> list[FormField]:
         """Evaluate the page and return all checkbox fields.

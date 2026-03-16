@@ -19,6 +19,7 @@ class FieldType(str, Enum):
     TEXTAREA = "textarea"
     BUTTON = "button"
     SUBMIT = "submit"
+    QUILL_EDITOR = "quill_editor"
     OTHER = "other"
 
 

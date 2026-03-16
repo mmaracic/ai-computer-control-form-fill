@@ -19,13 +19,13 @@ from src.browser.handlers.date_field_handler import DateFieldHandler
 from src.browser.handlers.email_field_handler import EmailFieldHandler
 from src.browser.handlers.number_field_handler import NumberFieldHandler
 from src.browser.handlers.password_field_handler import PasswordFieldHandler
+from src.browser.handlers.quill_field_handler import QuillFieldHandler
 from src.browser.handlers.radio_field_handler import RadioFieldHandler
 from src.browser.handlers.select_field_handler import SelectFieldHandler
 from src.browser.handlers.text_field_handler import TextFieldHandler
 from src.browser.handlers.textarea_field_handler import TextareaFieldHandler
 from src.config.config import Config
 from src.postgres_repository import PostgresRepository
-from src.postgres_session import PostgresSession
 from src.util import load_config_from_yml
 
 logging.basicConfig(level=logging.INFO)
@@ -162,6 +162,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[Any, Any]:
             CheckboxFieldHandler(),
             RadioFieldHandler(),
             ButtonFieldHandler(),
+            QuillFieldHandler(),
         ],
     )
     await browser_service.start()

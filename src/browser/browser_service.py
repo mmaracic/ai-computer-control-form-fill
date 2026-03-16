@@ -21,19 +21,6 @@ NOT_STARTED_ERROR: str = "BrowserService has not been started. Call start() firs
 NAVIGATION_WAIT_UNTIL: Literal["domcontentloaded"] = "domcontentloaded"
 MODAL_SELECTOR: str = '[role="dialog"]'
 MODAL_DETECTION_TIMEOUT_MS: int = 500
-_AriaRole = Literal["button", "checkbox", "combobox", "radio", "spinbutton", "textbox"]
-_FIELD_TYPE_ROLES: dict[FieldType, _AriaRole] = {
-    FieldType.TEXT: "textbox",
-    FieldType.EMAIL: "textbox",
-    FieldType.PASSWORD: "textbox",
-    FieldType.TEXTAREA: "textbox",
-    FieldType.NUMBER: "spinbutton",
-    FieldType.CHECKBOX: "checkbox",
-    FieldType.RADIO: "radio",
-    FieldType.SELECT: "combobox",
-    FieldType.BUTTON: "button",
-    FieldType.SUBMIT: "button",
-}
 
 
 class BrowserService:
@@ -188,7 +175,7 @@ class BrowserService:
             raise ValueError(msg)
         page = await self.get_or_create_page()
         container = await _get_active_container(page)
-        locator = _locator_for_field(container, form_field, identifier)
+        locator = handler.get_locator(container, form_field, identifier)
         await handler.fill(locator.first, value)
         logger.info("Filled field '%s' via %s.", identifier, type(handler).__name__)
 
@@ -214,10 +201,14 @@ class BrowserService:
             msg = f"Element '{identifier}' not found."
             logger.warning("Could not find element with identifier '%s'.", identifier)
             raise ValueError(msg)
+        handler = self._handler_map.get(form_field.field_type)
+        if handler is None:
+            msg = f"No handler registered for field type '{form_field.field_type}'."
+            raise ValueError(msg)
         logger.info("Found element '%s' for clicking.", identifier)
         page = await self.get_or_create_page()
         container = await _get_active_container(page)
-        locator = _locator_for_field(container, form_field, identifier)
+        locator = handler.get_locator(container, form_field, identifier)
         await locator.first.click(timeout=LOCATOR_TIMEOUT_MS)
         logger.info("Clicked element '%s'.", identifier)
 
@@ -246,41 +237,6 @@ def _find_form_field(fields: list[FormField], identifier: str) -> FormField | No
     return None
 
 
-def _locator_for_field(
-    container: Page | Locator, form_field: FormField, identifier: str
-) -> Locator:
-    """Build a precise Playwright Locator from a FormField's identifying attributes.
-
-    Prefers field_id, then name, then ARIA role with label, then label, then placeholder.
-    The container can be a Page or a scoped Locator (e.g. a modal dialog).
-
-    Args:
-        container: The Playwright Page or scoped Locator to build the locator against.
-        form_field: The FormField whose attributes are used to construct the locator.
-        identifier: The original identifier string, used only in the error message.
-
-    Returns:
-        A Playwright Locator for the field.
-
-    Raises:
-        ValueError: If the FormField has no usable locator attributes.
-
-    """
-    if form_field.field_id:
-        return container.locator(f"#{form_field.field_id}")
-    if form_field.name:
-        return container.locator(f'[name="{form_field.name}"]')
-    role = _FIELD_TYPE_ROLES.get(form_field.field_type)
-    if role and form_field.label:
-        return container.get_by_role(role, name=form_field.label, exact=True)
-    if form_field.label:
-        return container.get_by_label(form_field.label, exact=True)
-    if form_field.placeholder:
-        return container.get_by_placeholder(form_field.placeholder, exact=True)
-    msg = f"Field '{identifier}' has no usable locator attributes."
-    raise ValueError(msg)
-
-
 async def _get_active_container(page: Page) -> Page | Locator:
     """Return a visible modal dialog locator if one is open, otherwise return the page.
 
@@ -294,7 +250,8 @@ async def _get_active_container(page: Page) -> Page | Locator:
     modal = page.locator(MODAL_SELECTOR).first
     try:
         await modal.wait_for(state="visible", timeout=MODAL_DETECTION_TIMEOUT_MS)
-        logger.debug("Modal dialog detected; scoping interactions to modal container.")
-        return modal
     except PlaywrightTimeoutError:
         return page
+    else:
+        logger.debug("Modal dialog detected; scoping interactions to modal container.")
+        return modal

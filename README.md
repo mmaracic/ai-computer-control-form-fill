@@ -71,6 +71,8 @@ Configuration for computer control Playwright browser is under the `browser` sec
 ### Computer control features:
 - Playwright for browser automation to perform form filling tasks
 - The implementation doesnt rely on image recognition; it uses Playwright's accessibility locators to find and interact with form fields in the DOM based on their labels, placeholders, names, or ids.
+- Specific types of form fields and other dom elements are supported through the implementation of specific handlers for each type of field (text, email, number, date, textarea, dropdowns, buttons, checkboxes, radio buttons).
+- modal and non-modal dialogs are supported through the implementation of element role based locators and handlers that can operate within the context of a dialog when it is present.
 
 ## Issues
 When the application fails to start due to missing Playwright dependency (although playwright was installeld as per running instructions):
